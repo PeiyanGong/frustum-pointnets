@@ -38,6 +38,11 @@ parser.add_argument('--idx_path', default=None, help='filename of txt where each
 parser.add_argument('--dump_result', action='store_true', help='If true, also dump results to .pickle file')
 FLAGS = parser.parse_args()
 
+##
+#FLAGS.from_rgb_detection = False
+print(FLAGS.from_rgb_detection)
+##
+
 # Set training configurations
 BATCH_SIZE = FLAGS.batch_size
 MODEL_PATH = FLAGS.model_path

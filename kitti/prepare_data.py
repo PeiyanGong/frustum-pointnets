@@ -461,9 +461,106 @@ def write_2d_rgb_detection(det_filename, split, result_dir):
             fout.write(line+'\n')
         fout.close() 
 
+def show_result(result_dir):
+    import mayavi.mlab as mlab
+    from viz_util import draw_lidar, draw_lidar_simple, draw_gt_boxes3d
+    print('Showing prediction results')
+    print('Result directory: ',result_dir)
+    data_idx_list = [int(line.rstrip()) for line in open(os.path.join(ROOT_DIR, 'kitti/image_sets/val.txt'))]
+
+    dataset = kitti_object(os.path.join(ROOT_DIR, 'dataset/KITTI/object'))
+
+    for data_idx in data_idx_list:
+        # Load data from dataset
+        objects = dataset.get_label_objects(data_idx)
+        objects[0].print_object()
+        img = dataset.get_image(data_idx)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        img_height, img_width, img_channel = img.shape
+        print(('Image shape: ', img.shape))
+        pc_velo = dataset.get_lidar(data_idx)[:,0:3]
+        calib = dataset.get_calibration(data_idx)
+
+        ## Draw lidar in rect camera coord
+        #print(' -------- LiDAR points in rect camera coordination --------')
+        #pc_rect = calib.project_velo_to_rect(pc_velo)
+        #fig = draw_lidar_simple(pc_rect)
+        #raw_input()
+
+        # Draw 2d and 3d boxes on image
+        print(' -------- 2D/3D bounding boxes in images --------')
+        show_image_with_boxes(img, objects, calib)
+        raw_input()
+
+        # Show all LiDAR points. Draw 3d box in LiDAR point cloud
+        print(' -------- LiDAR points and 3D boxes in velodyne coordinate --------')
+        #show_lidar_with_boxes(pc_velo, objects, calib)
+        #raw_input()
+        show_lidar_with_boxes(pc_velo, objects, calib, True, img_width, img_height)
+        raw_input()
+
+        # Visualize LiDAR points on images
+        print(' -------- LiDAR points projected to image plane --------')
+        show_lidar_on_image(pc_velo, img, calib, img_width, img_height) 
+        raw_input()
+        
+        # Show LiDAR points that are in the 3d box
+        ## Show all objects
+        print(' -------- LiDAR points in a 3D bounding box --------')
+        for i in range(len(objects)):
+            if objects[i].type=='DontCare':continue
+            box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(objects[i], calib.P) 
+            box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
+            box3droi_pc_velo, _ = extract_pc_in_box3d(pc_velo, box3d_pts_3d_velo)
+            #print(('Number of points in 3d box: ', box3droi_pc_velo.shape[i]))
+
+            fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+                fgcolor=None, engine=None, size=(1000, 500))
+            draw_lidar(box3droi_pc_velo, fig=fig)
+            draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig)
+            mlab.show(1)
+            raw_input()
+        
+        # UVDepth Image and its backprojection to point clouds
+        print(' -------- LiDAR points in a frustum from a 2D box --------')
+        imgfov_pc_velo, pts_2d, fov_inds = get_lidar_in_image_fov(pc_velo,
+            calib, 0, 0, img_width, img_height, True)
+        imgfov_pts_2d = pts_2d[fov_inds,:]
+        imgfov_pc_rect = calib.project_velo_to_rect(imgfov_pc_velo)
+
+        cameraUVDepth = np.zeros_like(imgfov_pc_rect)
+        cameraUVDepth[:,0:2] = imgfov_pts_2d
+        cameraUVDepth[:,2] = imgfov_pc_rect[:,2]
+
+        # Show that the points are exactly the same
+        backprojected_pc_velo = calib.project_image_to_velo(cameraUVDepth)
+        print(imgfov_pc_velo[0:20])
+        print(backprojected_pc_velo[0:20])
+
+        fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+            fgcolor=None, engine=None, size=(1000, 500))
+        draw_lidar(backprojected_pc_velo, fig=fig)
+        raw_input()
+
+        # Only display those points that fall into 2d box
+        print(' -------- LiDAR points in a frustum from a 2D box --------')
+        xmin,ymin,xmax,ymax = \
+            objects[0].xmin, objects[0].ymin, objects[0].xmax, objects[0].ymax
+        boxfov_pc_velo = \
+            get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax)
+        print(('2d box FOV point num: ', boxfov_pc_velo.shape[0]))
+
+        fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+            fgcolor=None, engine=None, size=(1000, 500))
+        draw_lidar(boxfov_pc_velo, fig=fig)
+        mlab.show(1)
+        raw_input()
+
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--demo', action='store_true', help='Run demo.')
+    parser.add_argument('--show_result', action='store_true', help='Show results.')
+    parser.add_argument('--result_location', default='train/detection_results_v2', help='output file/folder name')
     parser.add_argument('--gen_train', action='store_true', help='Generate train split frustum data with perturbed GT 2D boxes')
     parser.add_argument('--gen_val', action='store_true', help='Generate val split frustum data with GT 2D boxes')
     parser.add_argument('--gen_val_rgb_detection', action='store_true', help='Generate val split frustum data with RGB detection 2D boxes')
@@ -472,6 +569,10 @@ if __name__=='__main__':
 
     if args.demo:
         demo()
+        exit()
+
+    if args.show_result:
+        show_result(args.result_location)
         exit()
 
     if args.car_only:
