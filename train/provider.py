@@ -23,6 +23,31 @@ try:
 except NameError:
     raw_input = input  # Python 3
 
+def loadresult(ResultDir):
+    '''
+    Load prediction result from
+    class_list: string
+    box2D_list: float * 4
+    box3D_list: float * 7
+    score_list: float
+    '''
+    file = open(ResultDir,"r") 
+    class_list=[]
+    box2D_list=[]
+    box3D_list=[]
+    score_list=[]
+    for _line in file:
+        line = _line.split()
+        class_list.append(line[0])
+        box2D_list.append([int(float(line[4])),int(float(line[5])),int(float(line[6])),int(float(line[7]))])
+        box3D_list.append([float(line[8]),float(line[9]),float(line[10]),float(line[11]),float(line[12]),float(line[13]),float(line[14])])
+        score_list.append(float(line[15]))
+    print(class_list)
+    print(box2D_list)
+    print(box3D_list)
+    print(score_list)
+    file.close()
+    return class_list, box2D_list, box3D_list,score_list
 
 def rotate_pc_along_y(pc, rot_angle):
     '''
@@ -90,7 +115,6 @@ def class2size(pred_cls, residual):
     ''' Inverse function to size2class. '''
     mean_size = g_type_mean_size[g_class2type[pred_cls]]
     return mean_size + residual
-
 
 class FrustumDataset(object):
     ''' Dataset class for Frustum PointNets training/evaluation.

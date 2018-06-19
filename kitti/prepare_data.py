@@ -19,6 +19,26 @@ import cPickle as pickle
 from kitti_object import *
 import argparse
 
+def loadresult(ResultDir):
+    '''
+    Load prediction result from
+    class_list: string
+    box2D_list: float * 4
+    box3D_list: float * 7
+    score_list: float
+    '''
+    file = open(ResultDir,"r") 
+    object_list = []
+    for _line in file:
+        #line = _line.split()
+        #class_list.append(line[0])
+        #box2D_list.append([int(float(line[4])),int(float(line[5])),int(float(line[6])),int(float(line[7]))])
+        #box3D_list.append([float(line[8]),float(line[9]),float(line[10]),float(line[11]),float(line[12]),float(line[13]),float(line[14])])
+        #score_list.append(float(line[15]))
+        _object=utils.Object3d(_line)
+        object_list.append(_object)
+    file.close()
+    return object_list
 
 def in_hull(p, hull):
     from scipy.spatial import Delaunay
@@ -469,8 +489,15 @@ def show_result(result_dir):
     data_idx_list = [int(line.rstrip()) for line in open(os.path.join(ROOT_DIR, 'kitti/image_sets/val.txt'))]
 
     dataset = kitti_object(os.path.join(ROOT_DIR, 'dataset/KITTI/object'))
+    #print(ROOT_DIR)
+    _result_dir = os.path.join(ROOT_DIR,result_dir)
 
     for data_idx in data_idx_list:
+        # Loat data from result
+        result_list = loadresult(os.path.join(_result_dir, '%06d.txt'%(data_idx)))
+        print('%06d.txt'%(data_idx))
+        result_list[0].print_object()
+        #print(class_list)
         # Load data from dataset
         objects = dataset.get_label_objects(data_idx)
         objects[0].print_object()
@@ -489,72 +516,67 @@ def show_result(result_dir):
 
         # Draw 2d and 3d boxes on image
         print(' -------- 2D/3D bounding boxes in images --------')
-        show_image_with_boxes(img, objects, calib)
+        show_image_with_boxes_results(img, objects, result_list, calib)
         raw_input()
 
         # Show all LiDAR points. Draw 3d box in LiDAR point cloud
         print(' -------- LiDAR points and 3D boxes in velodyne coordinate --------')
         #show_lidar_with_boxes(pc_velo, objects, calib)
         #raw_input()
-        show_lidar_with_boxes(pc_velo, objects, calib, True, img_width, img_height)
-        raw_input()
-
-        # Visualize LiDAR points on images
-        print(' -------- LiDAR points projected to image plane --------')
-        show_lidar_on_image(pc_velo, img, calib, img_width, img_height) 
+        show_lidar_with_boxes_results(pc_velo, objects, result_list, calib, True, img_width, img_height)
         raw_input()
         
         # Show LiDAR points that are in the 3d box
         ## Show all objects
-        print(' -------- LiDAR points in a 3D bounding box --------')
-        for i in range(len(objects)):
-            if objects[i].type=='DontCare':continue
-            box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(objects[i], calib.P) 
-            box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
-            box3droi_pc_velo, _ = extract_pc_in_box3d(pc_velo, box3d_pts_3d_velo)
+        #print(' -------- LiDAR points in a 3D bounding box --------')
+        #for i in range(len(result_list)):
+        #    if objects[i].type=='DontCare':continue
+        #    box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(result_list[i], calib.P) 
+        #    box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
+        #    box3droi_pc_velo, _ = extract_pc_in_box3d(pc_velo, box3d_pts_3d_velo)
             #print(('Number of points in 3d box: ', box3droi_pc_velo.shape[i]))
 
-            fig = mlab.figure(figure=None, bgcolor=(0,0,0),
-                fgcolor=None, engine=None, size=(1000, 500))
-            draw_lidar(box3droi_pc_velo, fig=fig)
-            draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig)
-            mlab.show(1)
-            raw_input()
+        #    fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+        #        fgcolor=None, engine=None, size=(1000, 500))
+        #    draw_lidar(box3droi_pc_velo, fig=fig)
+        #    draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig)
+        #    mlab.show(1)
+        #    raw_input()
         
-        # UVDepth Image and its backprojection to point clouds
-        print(' -------- LiDAR points in a frustum from a 2D box --------')
-        imgfov_pc_velo, pts_2d, fov_inds = get_lidar_in_image_fov(pc_velo,
-            calib, 0, 0, img_width, img_height, True)
-        imgfov_pts_2d = pts_2d[fov_inds,:]
-        imgfov_pc_rect = calib.project_velo_to_rect(imgfov_pc_velo)
+        ## UVDepth Image and its backprojection to point clouds
+        #print(' -------- LiDAR points in a frustum from a 2D box --------')
+        #imgfov_pc_velo, pts_2d, fov_inds = get_lidar_in_image_fov(pc_velo,
+        #    calib, 0, 0, img_width, img_height, True)
+        #imgfov_pts_2d = pts_2d[fov_inds,:]
+        #imgfov_pc_rect = calib.project_velo_to_rect(imgfov_pc_velo)
 
-        cameraUVDepth = np.zeros_like(imgfov_pc_rect)
-        cameraUVDepth[:,0:2] = imgfov_pts_2d
-        cameraUVDepth[:,2] = imgfov_pc_rect[:,2]
+        #cameraUVDepth = np.zeros_like(imgfov_pc_rect)
+        #cameraUVDepth[:,0:2] = imgfov_pts_2d
+        #cameraUVDepth[:,2] = imgfov_pc_rect[:,2]
 
-        # Show that the points are exactly the same
-        backprojected_pc_velo = calib.project_image_to_velo(cameraUVDepth)
-        print(imgfov_pc_velo[0:20])
-        print(backprojected_pc_velo[0:20])
+        ## Show that the points are exactly the same
+        #backprojected_pc_velo = calib.project_image_to_velo(cameraUVDepth)
+        #print(imgfov_pc_velo[0:20])
+        #print(backprojected_pc_velo[0:20])
 
-        fig = mlab.figure(figure=None, bgcolor=(0,0,0),
-            fgcolor=None, engine=None, size=(1000, 500))
-        draw_lidar(backprojected_pc_velo, fig=fig)
-        raw_input()
+        #fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+        #    fgcolor=None, engine=None, size=(1000, 500))
+        #draw_lidar(backprojected_pc_velo, fig=fig)
+        #raw_input()
 
-        # Only display those points that fall into 2d box
-        print(' -------- LiDAR points in a frustum from a 2D box --------')
-        xmin,ymin,xmax,ymax = \
-            objects[0].xmin, objects[0].ymin, objects[0].xmax, objects[0].ymax
-        boxfov_pc_velo = \
-            get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax)
-        print(('2d box FOV point num: ', boxfov_pc_velo.shape[0]))
+        ## Only display those points that fall into 2d box
+        #print(' -------- LiDAR points in a frustum from a 2D box --------')
+        #xmin,ymin,xmax,ymax = \
+        #    objects[0].xmin, objects[0].ymin, objects[0].xmax, objects[0].ymax
+        #boxfov_pc_velo = \
+        #    get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax)
+        #print(('2d box FOV point num: ', boxfov_pc_velo.shape[0]))
 
-        fig = mlab.figure(figure=None, bgcolor=(0,0,0),
-            fgcolor=None, engine=None, size=(1000, 500))
-        draw_lidar(boxfov_pc_velo, fig=fig)
-        mlab.show(1)
-        raw_input()
+        #fig = mlab.figure(figure=None, bgcolor=(0,0,0),
+        #    fgcolor=None, engine=None, size=(1000, 500))
+        #draw_lidar(boxfov_pc_velo, fig=fig)
+        #mlab.show(1)
+        #raw_input()
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
