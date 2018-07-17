@@ -45,7 +45,7 @@ def draw_lidar(pc, color=None, fig=None, bgcolor=(0,0,0), pts_scale=1, pts_mode=
         fig: created or used fig
     '''
     if fig is None: fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))
-    if color is None: color = pc[:,2]
+    if color is None: color = 1*np.ones(len(pc[:,2]))
     mlab.points3d(pc[:,0], pc[:,1], pc[:,2], color, color=pts_color, mode=pts_mode, colormap = 'gnuplot', scale_factor=pts_scale, figure=fig)
     
     #draw origin

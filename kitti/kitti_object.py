@@ -51,7 +51,8 @@ class kitti_object(object):
 
     def get_image(self, idx):
         assert(idx<self.num_samples) 
-        img_filename = os.path.join(self.image_dir, '%06d.png'%(idx))
+        img_filename = os.path.join(self.image_dir, '%06d.jpg'%(idx))
+        #** img_filename = os.path.join(self.image_dir, '%06d.png'%(idx))
         return utils.load_image(img_filename)
 
     def get_lidar(self, idx): 
@@ -61,7 +62,9 @@ class kitti_object(object):
 
     def get_calibration(self, idx):
         assert(idx<self.num_samples) 
-        calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(idx))
+        #** calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(idx))
+        calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(0))
+        #print(calib_filename)
         return utils.Calibration(calib_filename)
 
     def get_label_objects(self, idx):
@@ -153,7 +156,28 @@ def show_image_with_boxes_results(img, objects,results, calib, show3d=False):
         cv2.rectangle(img1, (int(obj.xmin),int(obj.ymin)),
             (int(obj.xmax),int(obj.ymax)), (255,0,0), 2)
         box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(obj, calib.P)
+        #print()
         img2 = utils.draw_projected_box3d(img2, box3d_pts_2d)
+    Image.fromarray(img1).show()
+    if show3d:
+        Image.fromarray(img2).show()
+
+def show_image_with_results(img, results, calib, show3d=True):
+    ''' Show image with 2D bounding boxes '''
+    img1 = np.copy(img) # for 2d bbox
+    img2 = np.copy(img) # for 3d bbox
+    # i = 0;
+    for obj in results:
+        if obj.type=='DontCare':continue
+        cv2.rectangle(img1, (int(obj.xmin),int(obj.ymin)),
+            (int(obj.xmax),int(obj.ymax)), (255,0,0), 2)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img1,str(obj.score),(int(obj.xmin),int(obj.ymin)), font, 2,(255,255,255),2,cv2.LINE_AA)
+        box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(obj, calib.P)
+        #print(box3d_pts_2d)
+        #print(box3d_pts_3d)
+        img2 = utils.draw_projected_box3d(img2, box3d_pts_2d)
+        # i = i + 1
     Image.fromarray(img1).show()
     if show3d:
         Image.fromarray(img2).show()
@@ -162,15 +186,58 @@ def get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax,
                            return_more=False, clip_distance=2.0):
     ''' Filter lidar points, keep those in image FOV '''
     pts_2d = calib.project_velo_to_image(pc_velo)
+    # Here we go
+    #fov_inds = (pts_2d[:,0]<xmax) & (pts_2d[:,0]>=xmin) & \
+    #    (pts_2d[:,1]<ymax) & (pts_2d[:,1]>=ymin)
     fov_inds = (pts_2d[:,0]<xmax) & (pts_2d[:,0]>=xmin) & \
         (pts_2d[:,1]<ymax) & (pts_2d[:,1]>=ymin)
-    fov_inds = fov_inds & (pc_velo[:,0]>clip_distance)
+    ##fov_inds = fov_inds & (pc_velo[:,1]>clip_distance) # x of cars, y of figure
+    fov_inds = fov_inds & (pc_velo[:,0]>clip_distance)  # after z correction
+    ##
+    #fov_inds = fov_inds & (pc_velo[:,2]<2.5) # z axis
+    #fov_inds = fov_inds & (pc_velo[:,2]> -1.4) # z axis
     imgfov_pc_velo = pc_velo[fov_inds,:]
     if return_more:
         return imgfov_pc_velo, pts_2d, fov_inds
     else:
         return imgfov_pc_velo
+def show_lidar_with_results(pc_velo, results, calib,
+                          img_fov=False, img_width=None, img_height=None): 
+    ''' Show all LiDAR points.
+        Draw 3d box in LiDAR point cloud (in velo coord system) '''
+    if 'mlab' not in sys.modules: import mayavi.mlab as mlab
+    from viz_util import draw_lidar_simple, draw_lidar, draw_gt_boxes3d
 
+    print(('All point num: ', pc_velo.shape[0]))
+    fig = mlab.figure(figure=None, bgcolor=None,
+        fgcolor=None, engine=None, size=(1000, 500))
+    if img_fov:
+        pc_velo = get_lidar_in_image_fov(pc_velo, calib, 0, 0,
+            img_width, img_height)
+        print(('FOV point num: ', pc_velo.shape[0]))
+    #pc_rect = np.zeros_like(pc_velo)
+    #print(pc_rect.shape)
+    #pc_rect[:,0:3] = calib.project_velo_to_rect(pc_velo[:,0:3])
+    #print(pc_rect.shape)
+    #print(pc_velo.shape)
+    #pc_rect[:,3] = pc_velo[:,3]
+    draw_lidar(pc_velo, fig=fig,pts_scale=0.1,pts_mode='sphere')
+
+    for obj in results:
+        if obj.type=='DontCare':continue
+        # Draw 3d bounding box
+        box3d_pts_2d, box3d_pts_3d = utils.compute_box_3d(obj, calib.P) 
+        box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
+        # Draw heading arrow
+        ori3d_pts_2d, ori3d_pts_3d = utils.compute_orientation_3d(obj, calib.P)
+        #ori3d_pts_3d_velo = calib.project_rect_to_velo(ori3d_pts_3d)
+        x1,y1,z1 = ori3d_pts_3d[0,:]
+        x2,y2,z2 = ori3d_pts_3d[1,:]
+        draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig, color=(1,0,0))
+        mlab.plot3d([x1, x2], [y1, y2], [z1,z2], color=(0.5,0.5,0.5),
+            tube_radius=None, line_width=1, figure=fig)
+    mlab.show(1)
+    
 def show_lidar_with_boxes_results(pc_velo, objects, results, calib,
                           img_fov=False, img_width=None, img_height=None): 
     ''' Show all LiDAR points.
@@ -185,7 +252,7 @@ def show_lidar_with_boxes_results(pc_velo, objects, results, calib,
         pc_velo = get_lidar_in_image_fov(pc_velo, calib, 0, 0,
             img_width, img_height)
         print(('FOV point num: ', pc_velo.shape[0]))
-    draw_lidar(pc_velo, fig=fig,pts_scale=0.1,pts_mode='sphere')
+    draw_lidar(pc_velo, fig=fig,pts_scale=1,pts_mode='sphere')
 
     for obj in objects:
         if obj.type=='DontCare':continue
@@ -256,10 +323,14 @@ def show_lidar_on_image(pc_velo, img, calib, img_width, img_height):
     import matplotlib.pyplot as plt
     cmap = plt.cm.get_cmap('hsv', 256)
     cmap = np.array([cmap(i) for i in range(256)])[:,:3]*255
-
+    #print(cmap)
+    #print(cmap.shape)
+    #print(imgfov_pts_2d.shape)
+    #print(imgfov_pc_rect.shape)
     for i in range(imgfov_pts_2d.shape[0]):
         depth = imgfov_pc_rect[i,2]
-        color = cmap[int(640.0/depth),:]
+        #print(depth)
+        color = cmap[int(160.0/depth),:]
         cv2.circle(img, (int(np.round(imgfov_pts_2d[i,0])),
             int(np.round(imgfov_pts_2d[i,1]))),
             2, color=tuple(color), thickness=-1)

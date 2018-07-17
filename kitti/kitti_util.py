@@ -34,6 +34,7 @@ class Object3d(object):
         self.l = data[10] # box length (in meters)
         self.t = (data[11],data[12],data[13]) # location (x,y,z) in camera coord.
         self.ry = data[14] # yaw angle (around Y-axis in camera coordinates) [-pi..pi]
+        self.score = data[15]
 
     def print_object(self):
         print('Type, truncation, occlusion, alpha: %s, %d, %d, %f' % \
@@ -86,9 +87,12 @@ class Calibration(object):
         # Projection matrix from rect camera coord to image2 coord
         self.P = calibs['P2'] 
         self.P = np.reshape(self.P, [3,4])
+        #print(self.P)
         # Rigid transform from Velodyne coord to reference camera coord
         self.V2C = calibs['Tr_velo_to_cam']
+        #self.V2C = inverse_rigid_trans(np.reshape(self.V2C, [3,4]))
         self.V2C = np.reshape(self.V2C, [3,4])
+        #print(self.V2C)
         self.C2V = inverse_rigid_trans(self.V2C)
         # Rotation from reference camera coord to rect camera coord
         self.R0 = calibs['R0_rect']
@@ -176,15 +180,32 @@ class Calibration(object):
 
     # =========================== 
     # ------- 3d to 2d ---------- 
-    # =========================== 
+    # ===========================  
+    # ** Add distortion to lidar points
+    # Distortion coeffs -0.199793 0.111990 -0.003269 0.000046 0.000000
     def project_rect_to_image(self, pts_3d_rect):
         ''' Input: nx3 points in rect camera coord.
             Output: nx2 points in image2 coord.
         '''
-        pts_3d_rect = self.cart2hom(pts_3d_rect)
-        pts_2d = np.dot(pts_3d_rect, np.transpose(self.P)) # nx3
-        pts_2d[:,0] /= pts_2d[:,2]
-        pts_2d[:,1] /= pts_2d[:,2]
+        # pts_3d_rect = self.cart2hom(pts_3d_rect)
+        # pts_2d = np.dot(pts_3d_rect, np.transpose(self.P)) # nx3
+        # pts_2d[:,0] /= pts_2d[:,2]
+        # pts_2d[:,1] /= pts_2d[:,2]
+        print(pts_3d_rect.shape)
+        # print(pts_3d_rect)
+        rvec = np.array([0,0,0], np.float) # rotation vector
+        tvec = np.array([0,0,0], np.float) # translation vector
+        distortion_coeffs = np.array([-0.199793, 0.111990, -0.003269, 0.000046, 0.000000], np.float)
+        _pts_2d = cv2.projectPoints(pts_3d_rect, rvec, tvec,self.P[0:3,0:3], distortion_coeffs)
+        # print(pts_2d[0].shape)
+        # print(pts_2d[1].shape)
+        # print(pts_2d[0])
+        # print(pts_2d[1])
+        pts_2d = np.array(_pts_2d[0])
+        # print(pts_2d.shape)
+        pts_2d = np.reshape(pts_2d,(-1,2))
+        # print(pts_2d.shape)
+        # print(pts_2d[1].shape)
         return pts_2d[:,0:2]
     
     def project_velo_to_image(self, pts_3d_velo):
@@ -269,7 +290,10 @@ def load_image(img_filename):
 
 def load_velo_scan(velo_filename):
     scan = np.fromfile(velo_filename, dtype=np.float32)
+    # print(len(scan))
     scan = scan.reshape((-1, 4))
+    # print(scan.shape)
+    # print(scan[1,:])
     return scan
 
 def project_to_image(pts_3d, P):
@@ -325,6 +349,7 @@ def compute_box_3d(obj, P):
     # only draw 3d bounding box for objs in front of the camera
     if np.any(corners_3d[2,:]<0.1):
         corners_2d = None
+        print("Not in camera")
         return corners_2d, np.transpose(corners_3d)
     
     # project the 3d bounding box into the image plane
@@ -378,11 +403,11 @@ def draw_projected_box3d(image, qs, color=(255,255,255), thickness=2):
        # Ref: http://docs.enthought.com/mayavi/mayavi/auto/mlab_helper_functions.html
        i,j=k,(k+1)%4
        # use LINE_AA for opencv3
-       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.CV_AA)
+       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.LINE_AA)
 
        i,j=k+4,(k+1)%4 + 4
-       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.CV_AA)
+       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.LINE_AA)
 
        i,j=k,k+4
-       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.CV_AA)
+       cv2.line(image, (qs[i,0],qs[i,1]), (qs[j,0],qs[j,1]), color, thickness, cv2.LINE_AA)
     return image

@@ -329,7 +329,7 @@ def read_det_file(det_filename):
     box2d_list = []
     for line in open(det_filename, 'r'):
         t = line.rstrip().split(" ")
-        id_list.append(int(os.path.basename(t[0]).rstrip('.png')))
+        id_list.append(int(os.path.basename(t[0]).rstrip('.jpg')))
         type_list.append(det_id2str[int(t[1])])
         prob_list.append(float(t[2]))
         box2d_list.append(np.array([float(t[i]) for i in range(3,7)]))
@@ -337,10 +337,10 @@ def read_det_file(det_filename):
 
  
 def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
-                                       viz=False,
+                                       viz=True,
                                        type_whitelist=['Car'],
-                                       img_height_threshold=25,
-                                       lidar_point_threshold=5):
+                                       img_height_threshold=30,
+                                       lidar_point_threshold=30):
     ''' Extract point clouds in frustums extruded from 2D detection boxes.
         Update: Lidar points and 3d boxes are in *rect camera* coord system
             (as that in 3d box label files)
@@ -362,6 +362,7 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
     cache_id = -1
     cache = None
     
+    # print(det_id_list)
     id_list = []
     type_list = []
     box2d_list = []
@@ -388,10 +389,18 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
         else:
             calib,pc_rect,pc_image_coord,img_fov_inds = cache
 
-        if det_type_list[det_idx] not in type_whitelist: continue
+        if det_type_list[det_idx] not in type_whitelist: 
+            print('WTF not in list')
+            print(data_idx)
+            continue
 
         # 2D BOX: Get pts rect backprojected 
         xmin,ymin,xmax,ymax = det_box2d_list[det_idx]
+        offset = 0
+        xmax = min(xmax+offset,img_width)
+        xmin = max(xmin-offset,0)
+        ymax = min(ymax+offset,img_height)
+        ymin = max(ymin-offset,0)
         box_fov_inds = (pc_image_coord[:,0]<xmax) & \
             (pc_image_coord[:,0]>=xmin) & \
             (pc_image_coord[:,1]<ymax) & \
@@ -410,6 +419,10 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
         # Pass objects that are too small
         if ymax-ymin<img_height_threshold or \
             len(pc_in_box_fov)<lidar_point_threshold:
+            print('WTF too small')
+            #print(ymax-ymin)
+            #print(len(pc_in_box_fov))
+            #print(data_idx)
             continue
        
         id_list.append(data_idx)
@@ -426,19 +439,23 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
         pickle.dump(type_list, fp)
         pickle.dump(frustum_angle_list, fp)
         pickle.dump(prob_list, fp)
-    
+    print(id_list)
     if viz:
+        print("Enter viz")
         import mayavi.mlab as mlab
+        from viz_util import draw_lidar_simple, draw_lidar, draw_gt_boxes3d
         for i in range(10):
             p1 = input_list[i]
-            fig = mlab.figure(figure=None, bgcolor=(0.4,0.4,0.4),
+            print(id_list[i])
+            fig = mlab.figure(figure=None, bgcolor=(0,0,0),
                 fgcolor=None, engine=None, size=(500, 500))
-            mlab.points3d(p1[:,0], p1[:,1], p1[:,2], p1[:,1], mode='point',
-                colormap='gnuplot', scale_factor=1, figure=fig)
-            fig = mlab.figure(figure=None, bgcolor=(0.4,0.4,0.4),
-                fgcolor=None, engine=None, size=(500, 500))
-            mlab.points3d(p1[:,2], -p1[:,0], -p1[:,1], seg, mode='point',
-                colormap='gnuplot', scale_factor=1, figure=fig)
+            draw_lidar(p1, fig=fig,pts_scale=0.1,pts_mode='point')
+            #mlab.points3d(p1[:,0], p1[:,1], p1[:,2], p1[:,1], mode='point',
+            #    colormap='gnuplot', scale_factor=1, figure=fig)
+            #fig = mlab.figure(figure=None, bgcolor=(0.4,0.4,0.4),
+             #   fgcolor=None, engine=None, size=(500, 500))
+            #mlab.points3d(p1[:,2], -p1[:,0], -p1[:,1], seg, mode='point',
+            #    colormap='gnuplot', scale_factor=1, figure=fig)
             raw_input()
 
 def write_2d_rgb_detection(det_filename, split, result_dir):
@@ -486,7 +503,7 @@ def show_result(result_dir):
     from viz_util import draw_lidar, draw_lidar_simple, draw_gt_boxes3d
     print('Showing prediction results')
     print('Result directory: ',result_dir)
-    data_idx_list = [int(line.rstrip()) for line in open(os.path.join(ROOT_DIR, 'kitti/image_sets/val.txt'))]
+    data_idx_list = [int(line.rstrip()) for line in open(os.path.join(ROOT_DIR, 'kitti/image_sets/denso.txt'))]
 
     dataset = kitti_object(os.path.join(ROOT_DIR, 'dataset/KITTI/object'))
     #print(ROOT_DIR)
@@ -496,18 +513,22 @@ def show_result(result_dir):
         # Loat data from result
         result_list = loadresult(os.path.join(_result_dir, '%06d.txt'%(data_idx)))
         print('%06d.txt'%(data_idx))
-        result_list[0].print_object()
+        #print(len(result_list))
+        if len(result_list) == 0:
+            continue
+        for result in result_list:
+            result.print_object()
         #print(class_list)
         # Load data from dataset
-        objects = dataset.get_label_objects(data_idx)
-        objects[0].print_object()
+        #** Here we go
+        #objects = dataset.get_label_objects(data_idx)
+        #objects[0].print_object()
         img = dataset.get_image(data_idx)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
         img_height, img_width, img_channel = img.shape
         print(('Image shape: ', img.shape))
         pc_velo = dataset.get_lidar(data_idx)[:,0:3]
         calib = dataset.get_calibration(data_idx)
-
         ## Draw lidar in rect camera coord
         #print(' -------- LiDAR points in rect camera coordination --------')
         #pc_rect = calib.project_velo_to_rect(pc_velo)
@@ -516,14 +537,21 @@ def show_result(result_dir):
 
         # Draw 2d and 3d boxes on image
         print(' -------- 2D/3D bounding boxes in images --------')
-        show_image_with_boxes_results(img, objects, result_list, calib)
+        #** Here we go
+        show_image_with_results(img, result_list, calib)
+        #show_image_with_boxes_results(img, objects, result_list, calib)
+        #show_image_with_boxes(img, objects, calib)
         raw_input()
+        #print(' -------- LiDAR points projected to image plane --------')
+        # show_lidar_on_image(pc_velo, img, calib, img_width, img_height) 
+        # raw_input()
 
         # Show all LiDAR points. Draw 3d box in LiDAR point cloud
         print(' -------- LiDAR points and 3D boxes in velodyne coordinate --------')
         #show_lidar_with_boxes(pc_velo, objects, calib)
         #raw_input()
-        show_lidar_with_boxes_results(pc_velo, objects, result_list, calib, True, img_width, img_height)
+        show_lidar_with_results(pc_velo, result_list, calib, True, img_width, img_height)
+        #show_lidar_with_boxes(pc_velo, objects, calib, True, img_width, img_height)
         raw_input()
         
         # Show LiDAR points that are in the 3d box
@@ -625,5 +653,5 @@ if __name__=='__main__':
             os.path.join(BASE_DIR, 'rgb_detections/rgb_detection_val.txt'),
             'training',
             os.path.join(BASE_DIR, output_prefix+'val_rgb_detection.pickle'),
-            viz=False,
+            viz=True,
             type_whitelist=type_whitelist) 

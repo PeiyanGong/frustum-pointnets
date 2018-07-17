@@ -23,32 +23,6 @@ try:
 except NameError:
     raw_input = input  # Python 3
 
-def loadresult(ResultDir):
-    '''
-    Load prediction result from
-    class_list: string
-    box2D_list: float * 4
-    box3D_list: float * 7
-    score_list: float
-    '''
-    file = open(ResultDir,"r") 
-    class_list=[]
-    box2D_list=[]
-    box3D_list=[]
-    score_list=[]
-    for _line in file:
-        line = _line.split()
-        class_list.append(line[0])
-        box2D_list.append([int(float(line[4])),int(float(line[5])),int(float(line[6])),int(float(line[7]))])
-        box3D_list.append([float(line[8]),float(line[9]),float(line[10]),float(line[11]),float(line[12]),float(line[13]),float(line[14])])
-        score_list.append(float(line[15]))
-    print(class_list)
-    print(box2D_list)
-    print(box3D_list)
-    print(score_list)
-    file.close()
-    return class_list, box2D_list, box3D_list,score_list
-
 def rotate_pc_along_y(pc, rot_angle):
     '''
     Input:
@@ -126,6 +100,9 @@ class FrustumDataset(object):
                  overwritten_data_path=None, from_rgb_detection=False, one_hot=False):
         '''
         Input:
+            **
+            Force enter from_rgb_detection since there is no label for denso data.
+            **
             npoints: int scalar, number of points for frustum point cloud.
             split: string, train or val
             random_flip: bool, in 50% randomly flip the point cloud
@@ -149,7 +126,7 @@ class FrustumDataset(object):
                 'kitti/frustum_carpedcyc_%s.pickle'%(split))
 
         self.from_rgb_detection = from_rgb_detection
-        if from_rgb_detection:
+        if 1:
             with open(overwritten_data_path,'rb') as fp:
                 self.id_list = pickle.load(fp)
                 self.box2d_list = pickle.load(fp)
