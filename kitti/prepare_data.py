@@ -340,7 +340,8 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
                                        viz=True,
                                        type_whitelist=['Car'],
                                        img_height_threshold=30,
-                                       lidar_point_threshold=30):
+                                       img_width_threshold=20,
+                                       lidar_point_threshold=50):
     ''' Extract point clouds in frustums extruded from 2D detection boxes.
         Update: Lidar points and 3d boxes are in *rect camera* coord system
             (as that in 3d box label files)
@@ -417,12 +418,9 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
             box2d_center_rect[0,0])
         
         # Pass objects that are too small
-        if ymax-ymin<img_height_threshold or \
+        if ymax-ymin<img_height_threshold or xmax-xmin<img_width_threshold or\
             len(pc_in_box_fov)<lidar_point_threshold:
             print('WTF too small')
-            #print(ymax-ymin)
-            #print(len(pc_in_box_fov))
-            #print(data_idx)
             continue
        
         id_list.append(data_idx)
