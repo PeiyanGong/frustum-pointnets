@@ -156,6 +156,46 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
     return np.argmax(logits, 2), centers, heading_cls, heading_res, \
         size_cls, size_res, scores
 
+# Add validation
+def my_write_detection_results(result_dir, id_list, type_list, box2d_list, center_list, \
+                            heading_cls_list, heading_res_list, \
+                            size_cls_list, size_res_list, \
+                            rot_angle_list, score_list, ptcloud_range_list):
+    ''' Write frustum pointnets results to KITTI format label files. '''
+    if result_dir is None: return
+    results = {} # map from idx to list of strings, each string is a line (without \n)
+    # Add validation
+    for i in range(len(center_list)):
+        idx = id_list[i]
+        output_str = type_list[i] + " -1 -1 -10 "
+        box2d = box2d_list[i]
+        output_str += "%f %f %f %f " % (box2d[0],box2d[1],box2d[2],box2d[3])
+        h,w,l,tx,ty,tz,ry = provider.from_prediction_to_label_format(center_list[i],
+            heading_cls_list[i], heading_res_list[i],
+            size_cls_list[i], size_res_list[i], rot_angle_list[i])
+        # Here
+        res_range = np.sqrt(tx**2+ty**2+tz**2)
+        ratio = res_range/ptcloud_range_list[i]
+        # if abs(box2d[2]-box2d[0])<45 or abs(box2d[3]-box2d[1])<45:
+        #     continue
+        if ptcloud_range_list[i]>4 and (ratio < 0.5 or ratio > 1.5):
+            continue    
+        # End
+        score = ratio
+        output_str += "%f %f %f %f %f %f %f %f" % (h,w,l,tx,ty,tz,ry,score)
+        if idx not in results: results[idx] = []
+        results[idx].append(output_str)
+
+    # Write TXT files
+    if not os.path.exists(result_dir): os.mkdir(result_dir)
+    output_dir = os.path.join(result_dir, 'data')
+    if not os.path.exists(output_dir): os.mkdir(output_dir)
+    for idx in results:
+        pred_filename = os.path.join(output_dir, '%06d.txt'%(idx))
+        fout = open(pred_filename, 'w')
+        for line in results[idx]:
+            fout.write(line+'\n')
+        fout.close() 
 def write_detection_results(result_dir, id_list, type_list, box2d_list, center_list, \
                             heading_cls_list, heading_res_list, \
                             size_cls_list, size_res_list, \
@@ -163,6 +203,7 @@ def write_detection_results(result_dir, id_list, type_list, box2d_list, center_l
     ''' Write frustum pointnets results to KITTI format label files. '''
     if result_dir is None: return
     results = {} # map from idx to list of strings, each string is a line (without \n)
+    # Add validation
     for i in range(len(center_list)):
         idx = id_list[i]
         output_str = type_list[i] + " -1 -1 -10 "
@@ -266,12 +307,14 @@ def test_from_rgb_detection(output_filename, result_dir=None):
             pickle.dump(score_list, fp)
             pickle.dump(onehot_list, fp)
 
+    # Need to add validation on prediction result
+
     # Write detection results for KITTI evaluation
     print('Number of point clouds: %d' % (len(ps_list)))
-    write_detection_results(result_dir, TEST_DATASET.id_list,
+    my_write_detection_results(result_dir, TEST_DATASET.id_list,
         TEST_DATASET.type_list, TEST_DATASET.box2d_list,
         center_list, heading_cls_list, heading_res_list,
-        size_cls_list, size_res_list, rot_angle_list, score_list)
+        size_cls_list, size_res_list, rot_angle_list, score_list,TEST_DATASET.ptcloud_range_list)
     # Make sure for each frame (no matter if we have measurment for that frame),
     # there is a TXT file
     output_dir = os.path.join(result_dir, 'data')

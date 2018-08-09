@@ -51,25 +51,29 @@ class kitti_object(object):
 
     def get_image(self, idx):
         assert(idx<self.num_samples) 
-        img_filename = os.path.join(self.image_dir, '%06d.jpg'%(idx))
+        # img_filename = os.path.join(self.image_dir, '%06d.jpg'%(idx))
         #** img_filename = os.path.join(self.image_dir, '%06d.png'%(idx))
+        img_filename = os.path.join(self.image_dir, '0000%06d.png'%(idx))
         return utils.load_image(img_filename)
 
     def get_lidar(self, idx): 
         assert(idx<self.num_samples) 
-        lidar_filename = os.path.join(self.lidar_dir, '%06d.bin'%(idx))
+        # lidar_filename = os.path.join(self.lidar_dir, '%06d.bin'%(idx))
+        lidar_filename = os.path.join(self.lidar_dir, '0000%06d.bin'%(idx))
         return utils.load_velo_scan(lidar_filename)
 
     def get_calibration(self, idx):
         assert(idx<self.num_samples) 
         #** calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(idx))
-        calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(0))
+        # calib_filename = os.path.join(self.calib_dir, '%06d.txt'%(0))
+        # calib_filename = os.path.join(self.calib_dir, '%10d.txt'%(0))
         #print(calib_filename)
-        return utils.Calibration(calib_filename)
+        # return utils.Calibration(calib_filename)
+        return utils.Calibration(self.calib_dir,from_video=True)
 
     def get_label_objects(self, idx):
         assert(idx<self.num_samples and self.split=='training') 
-        label_filename = os.path.join(self.label_dir, '%06d.txt'%(idx))
+        # label_filename = os.path.join(self.label_dir, '%06d.txt'%(idx))
         return utils.read_label(label_filename)
         
     def get_depth_map(self, idx):
@@ -191,7 +195,7 @@ def get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax,
     #    (pts_2d[:,1]<ymax) & (pts_2d[:,1]>=ymin)
     fov_inds = (pts_2d[:,0]<xmax) & (pts_2d[:,0]>=xmin) & \
         (pts_2d[:,1]<ymax) & (pts_2d[:,1]>=ymin)
-    ##fov_inds = fov_inds & (pc_velo[:,1]>clip_distance) # x of cars, y of figure
+    # fov_inds = fov_inds & (pc_velo[:,1]>clip_distance) # x of cars, y of figure
     fov_inds = fov_inds & (pc_velo[:,0]>clip_distance)  # after z correction
     ##
     #fov_inds = fov_inds & (pc_velo[:,2]<2.5) # z axis
@@ -233,7 +237,7 @@ def show_lidar_with_results(pc_velo, results, calib,
         #ori3d_pts_3d_velo = calib.project_rect_to_velo(ori3d_pts_3d)
         x1,y1,z1 = ori3d_pts_3d[0,:]
         x2,y2,z2 = ori3d_pts_3d[1,:]
-        draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig, color=(1,0,0))
+        draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig, color=(1,0,0),score = obj.score)
         mlab.plot3d([x1, x2], [y1, y2], [z1,z2], color=(0.5,0.5,0.5),
             tube_radius=None, line_width=1, figure=fig)
     mlab.show(1)

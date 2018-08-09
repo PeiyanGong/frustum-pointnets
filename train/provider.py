@@ -135,6 +135,7 @@ class FrustumDataset(object):
                 # frustum_angle is clockwise angle from positive x-axis
                 self.frustum_angle_list = pickle.load(fp) 
                 self.prob_list = pickle.load(fp)
+                self.ptcloud_range_list = pickle.load(fp)
         else:
             with open(overwritten_data_path,'rb') as fp:
                 self.id_list = pickle.load(fp)

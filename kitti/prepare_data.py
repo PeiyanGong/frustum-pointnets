@@ -329,7 +329,7 @@ def read_det_file(det_filename):
     box2d_list = []
     for line in open(det_filename, 'r'):
         t = line.rstrip().split(" ")
-        id_list.append(int(os.path.basename(t[0]).rstrip('.jpg')))
+        id_list.append(int(os.path.basename(t[0]).rstrip('.png')))
         type_list.append(det_id2str[int(t[1])])
         prob_list.append(float(t[2]))
         box2d_list.append(np.array([float(t[i]) for i in range(3,7)]))
@@ -339,8 +339,8 @@ def read_det_file(det_filename):
 def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
                                        viz=True,
                                        type_whitelist=['Car'],
-                                       img_height_threshold=30,
-                                       img_width_threshold=20,
+                                       img_height_threshold=45,
+                                       img_width_threshold=45,
                                        lidar_point_threshold=50):
     ''' Extract point clouds in frustums extruded from 2D detection boxes.
         Update: Lidar points and 3d boxes are in *rect camera* coord system
@@ -370,6 +370,8 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
     prob_list = []
     input_list = [] # channel number = 4, xyz,intensity in rect camera coord
     frustum_angle_list = [] # angle of 2d box center from pos x-axis
+    # Here we go
+    ptcloud_range_list = []
 
     for det_idx in range(len(det_id_list)):
         data_idx = det_id_list[det_idx]
@@ -416,19 +418,28 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
         box2d_center_rect = calib.project_image_to_rect(uvdepth)
         frustum_angle = -1 * np.arctan2(box2d_center_rect[0,2],
             box2d_center_rect[0,0])
-        
+        # Here we go
+
         # Pass objects that are too small
-        if ymax-ymin<img_height_threshold or xmax-xmin<img_width_threshold or\
+        if abs(ymax-ymin) <= img_height_threshold or abs(xmax-xmin) <= img_width_threshold or\
             len(pc_in_box_fov)<lidar_point_threshold:
-            print('WTF too small')
+            print('too small')
             continue
-       
+        #print(len(pc_in_box_fov[:,0]))
+        ptcloud_range = sum(np.sqrt(pc_in_box_fov[:,0]**2+pc_in_box_fov[:,1]**2+pc_in_box_fov[:,2]**2))/len(pc_in_box_fov[:,0]);
+        
+        if ptcloud_range > 1630:
+            print(ptcloud_range)
+            continue
+
         id_list.append(data_idx)
         type_list.append(det_type_list[det_idx])
         box2d_list.append(det_box2d_list[det_idx])
         prob_list.append(det_prob_list[det_idx])
         input_list.append(pc_in_box_fov)
         frustum_angle_list.append(frustum_angle)
+        # Here we go
+        ptcloud_range_list.append(ptcloud_range)
     
     with open(output_filename,'wb') as fp:
         pickle.dump(id_list, fp)
@@ -437,6 +448,8 @@ def extract_frustum_data_rgb_detection(det_filename, split, output_filename,
         pickle.dump(type_list, fp)
         pickle.dump(frustum_angle_list, fp)
         pickle.dump(prob_list, fp)
+        # Here we go
+        pickle.dump(ptcloud_range_list,fp)
     print(id_list)
     if viz:
         print("Enter viz")
@@ -651,5 +664,5 @@ if __name__=='__main__':
             os.path.join(BASE_DIR, 'rgb_detections/rgb_detection_val.txt'),
             'training',
             os.path.join(BASE_DIR, output_prefix+'val_rgb_detection.pickle'),
-            viz=True,
+            viz=False,
             type_whitelist=type_whitelist) 
